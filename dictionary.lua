@@ -43,7 +43,7 @@ function Dictionary:load(filename)
 
     -- fill byletter
     byletter = {}
-    for _,char in pairs(letters) do
+    for _,char in ipairs(letters) do
       byletter[char] = {}
       for i = 3, 6, 1 do
         for _,word in pairs(words[i]) do
@@ -52,6 +52,7 @@ function Dictionary:load(filename)
           end
         end
       end
+      table.sort(byletter[char])
     end
 
     bylength = {}
