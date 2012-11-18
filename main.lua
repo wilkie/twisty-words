@@ -20,6 +20,21 @@ function love.load()
   for char in fullword:gmatch(".") do
     table.insert(letters, char)
   end
+
+  shuffle()
+end
+
+-- Shuffle letters
+
+function shuffle()
+  local n = #letters
+  while n >= 2 do
+    -- n is last pertinent index
+    local k = math.random(n) -- 1 <= r <= n
+    -- swap
+    letters[n], letters[k] = letters[k], letters[n]
+    n = n - 1
+  end
 end
 
 -- Events
@@ -29,6 +44,7 @@ function love.keypressed(key, unicode)
     love.event.push("esc")
   elseif key == "space" then
     -- SHUFFLE LETTERS
+    shuffle()
   end
 end
 
