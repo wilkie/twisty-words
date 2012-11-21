@@ -16,10 +16,14 @@ chosen = {}
 -- contains the letters that are unused that can be used to form words
 left = {}
 
--- The font that renders the tiles
+-- the font that renders the tiles
 bigfont = love.graphics.newImageFont("images/letters.png", "abcdefghijklmnopqrstuvwxyz")
 
+-- the font that renders the word list
 smallfont = love.graphics.newImageFont("images/small_letters.png", "abcdefghijklmnopqrstuvwxyz_")
+
+-- the font that renders the clock
+clockfont = love.graphics.newImageFont("images/digits.png", "0123456789")
 
 -- background image
 image_bg = love.graphics.newImage("images/bg.png")
@@ -29,7 +33,18 @@ image_correct   = love.graphics.newImage("images/glow-correct.png")
 image_incorrect = love.graphics.newImage("images/glow-incorrect.png")
 image_repeated  = love.graphics.newImage("images/glow-repeated.png")
 
+-- success image
+image_success   = love.graphics.newImage("images/good.png")
+
+-- the type of glow effect we want
 last_result = image_repeated
+
+-- score
+score = 0
+
+-- the amount of seconds left
+clock = 120
+totaltime = 0
 
 -- The list of words to find
 --   current_words["by_length"] gives a list keyed with the word length (3,4,5, or 6)
@@ -42,16 +57,19 @@ current_words = {}
 --   stored in the form {"found"=bool, "word"=string}
 --
 found_words = {}
+num_found   = 0
+total_words = 0
 
-function love.load()
-  -- Size
-  love.graphics.setMode(800,600,false,true,0)
-  love.graphics.setCaption("Twisty Words")
+-- can we move on to the next round?
+success = false
 
-  -- Load Initial World
-  local words = Dictionary:load("words.dat")
+-- words in this puzzle
+words = {}
 
-  current_words = words[1]
+function restart()
+  local n = math.random(#words)
+
+  current_words = words[n]
 
   local fullword = current_words["by_length"][6][1]
 
@@ -62,6 +80,7 @@ function love.load()
 
   left = letters
   chosen = {}
+  total_words = 0
 
   -- Fill found words and mark all as unfound
   for i = 3,6,1 do
@@ -69,10 +88,28 @@ function love.load()
     for _,check_word in ipairs(current_words["by_length"][i]) do
       entry = {found=false, word=check_word}
       table.insert(found_words[i], entry)
+      total_words = total_words + 1
     end
   end
 
   shuffle()
+
+  success   = false
+  clock     = 120
+  totaltime = 0
+  num_found = 0
+end
+
+function love.load()
+  -- Size
+  love.graphics.setMode(800,600,false,true,0)
+  love.graphics.setCaption("Twisty Words")
+
+  -- Load Initial World
+  words = Dictionary:load("words.dat")
+
+  restart()
+  score = 0
 end
 
 -- Shuffle letters
@@ -119,6 +156,15 @@ function check_off_word(check)
   for _,entry in pairs(found_words[#check]) do
     if entry["word"] == check then
       entry["found"] = true
+      score = score + math.pow(10, #check - 2)
+      love.graphics.setCaption("Twisty Words - "..score)
+      num_found = num_found + 1
+      if #check == 6 then
+        success = true
+      end
+      if num_found == total_words then
+        clock = 0
+      end
       return
     end
   end
@@ -126,10 +172,20 @@ end
 
 -- Events
 
+function love.mousepressed(x, y, button)
+  if clock == 0 then
+    if not success then
+      score = 0
+    end
+    restart()
+  end
+end
+
 function love.keypressed(key, unicode)
   if key == "escape" then
     -- quit
     love.event.push("q")
+  elseif clock == 0 then
   elseif key == " " then
     -- shuffle letters
     shuffle()
@@ -170,6 +226,20 @@ function love.keyreleased(key)
 end
 
 function love.update(dt)
+  totaltime = totaltime + dt
+  while totaltime > 1 do
+    if clock > 0 then
+      clock = clock - 1
+      if clock == 0 then
+        if success then
+          love.graphics.setCaption("Twisty Words - "..score.." - CLICK TO CONTINUE")
+        else
+          love.graphics.setCaption("Twisty Words - "..score.." - GAME OVER")
+        end
+      end
+    end
+    totaltime = totaltime - 1
+  end
 end
 
 function love.draw()
@@ -193,7 +263,7 @@ function love.draw()
   -- draw words found / left to find
   love.graphics.setFont(smallfont)
   
-  local y = 10
+  local y = 61
   local x = 10
 
   blanks = "___"
@@ -205,18 +275,22 @@ function love.draw()
     for _,entry in ipairs(found_words[i]) do
       if entry["found"] then
         love.graphics.print(entry["word"], x, y)
+      elseif clock == 0 then
+        love.graphics.setColor(0, 255, 0, 80)
+        love.graphics.print(entry["word"], x, y)
+        love.graphics.setColor(255, 255, 255, 255)
       else
         love.graphics.print(blanks, x, y)
       end
 
       y = y + smallfont:getHeight()
-      if i == 3 and k == 6 or k == 12 then
-        x = x + 70
+      if (i == 3 or i == 4) and (k == 10 or k == 20 or k == 30) then
+        x = x + 55
         set_y = y
         use_set_y = true
         y = start_y
-      elseif i == 4 and k == 6 or k == 12 then
-        x = x + 100
+       elseif (i == 5) and (k == 5 or k == 10 or k == 15) then
+        x = x + 55
         set_y = y
         use_set_y = true
         y = start_y
@@ -232,5 +306,30 @@ function love.draw()
       y = y + smallfont:getHeight()
     end
     blanks = blanks.."_"
+  end
+
+  if success then
+    love.graphics.draw(image_success, 696, 42)
+  end
+
+  -- draw clock
+  love.graphics.setFont(clockfont)
+  clockdisplay = ""..clock
+  if clock < 10 then
+    clockdisplay = "00"..clock
+  elseif clock < 100 then
+    clockdisplay = "0"..clock
+  end
+  love.graphics.print(clockdisplay, 517, 492)
+
+  if clock == 0 then
+    if success then
+      love.graphics.setColor(0, 255, 0, 80)
+      love.graphics.rectangle("fill", 0, 0, 800, 600)
+    else
+      love.graphics.setColor(255, 0, 0, 80)
+      love.graphics.rectangle("fill", 0, 0, 800, 600)
+    end
+    love.graphics.setColor(255, 255, 255, 255)
   end
 end
